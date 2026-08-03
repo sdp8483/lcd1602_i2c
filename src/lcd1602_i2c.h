@@ -42,6 +42,17 @@
 #include "hardware/i2c.h"
 #include "pico/stdlib.h"
 
+/* debug printf ------------------------------------------------------------- */
+#ifndef LCD1602_I2C_LOG_MESSAGES
+#define LCD1602_I2C_LOG_MESSAGES    true
+#endif
+
+#if LCD1602_I2C_LOG_MESSAGES
+#define lcd1602_log(__info,...)     printf("LCD1602_I2C: ", __info,##__VA_ARGS__)
+#else
+#define lcd1602_log(__info,...)
+#endif
+
 /* Uses I2C 100khz mode */
 #define STANDARD_RATE 100000
 
