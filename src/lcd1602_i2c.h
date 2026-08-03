@@ -106,8 +106,13 @@
 #define LCD_CHAR_MODE 0x01
 
 /* 1602 config */
+#ifndef MAX_LINES
 #define MAX_LINES 2
+#endif
+
+#ifndef MAX_CHARS
 #define MAX_CHARS 16
+#endif
 
 /* Delay values in microseconds, check page 24 */
 #define FAST_DELAY 80
