@@ -1,14 +1,17 @@
 cmake_minimum_required(VERSION 3.28)
 
-# library core sources
-set(LCD1602_I2C_SRCS
-    ${CMAKE_CURRENT_LIST_DIR}/lcd1602_i2c.c)
+# setup project
+project(lcd1602_i2c_PROJECT C)
 
-# include directories
-set(LCD1602_I2C_INCLUDES
-    ${CMAKE_CURRENT_LIST_DIR})
+if(NOT PROJECT_IS_TOP_LEVEL)
+    add_subdirectory(src)
+else()
+    # unit testing
+    # include(CTest)
 
-# register library to the system
-add_library(lcd1602_i2c INTERFACE)
-target_sources(lcd1602_i2c INTERFACE ${LCD1602_I2C_SRCS})
-target_include_directories(lcd1602_i2c INTERFACE ${LCD1602_I2C_INCLUDES})
+    # add src directory and rename to bin on build
+    # add_subdirectory(src bin)
+
+    # add test directory
+    # add_subdirectory(test)
+endif()
