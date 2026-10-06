@@ -78,6 +78,11 @@ void lcd_init(LCD* lcd_inst, int address, uint8_t pin_sda, uint8_t pin_scl, i2c_
     lcd_inst->status.shift_display = 0;
     lcd_inst->status.shift_right = 0;
 
+    lcd_inst->_row_offsets[0] = 0x00;
+    lcd_inst->_row_offsets[1] = 0x40;
+    lcd_inst->_row_offsets[2] = 0x00 + MAX_CHARS;
+    lcd_inst->_row_offsets[3] = 0x40 + MAX_CHARS;
+
     // The initialization is from page 46 of the HD44780U datasheet.
 
     // Sleeps are for the display, taken from the same page.
@@ -118,7 +123,7 @@ void lcd_set_cursor_pos(LCD* lcd_inst, uint8_t line, uint8_t position) {
     if (position >= MAX_CHARS || line >= MAX_LINES) {
         return;
     }
-    uint8_t val = (line == 0) ? 0x80 + position : 0xC0 + position;
+    uint8_t val = LCD_SETDDRAMADDR | (position + lcd_inst->_row_offsets[line]);
     lcd_send_byte(lcd_inst, val, LCD_COMMAND_MODE, FAST_DELAY);
 }
 
