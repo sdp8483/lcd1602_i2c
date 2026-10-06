@@ -174,6 +174,9 @@ typedef struct _LCD {
     uint8_t i2c_type;
 
     LCD_STATUS status;
+
+    /* cursor position row offsets */
+    uint8_t _row_offsets[4];
 } LCD;
 
 /* Helper function for interfacing with pico-sdk */
