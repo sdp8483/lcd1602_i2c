@@ -177,4 +177,7 @@ void lcd_create_char(LCD *lcd_inst, uint8_t location, const uint8_t pattern[8]) 
     for (int8_t i=0; i < 8; i++) {
         lcd_send_byte(lcd_inst, pattern[i], LCD_CHAR_MODE, FAST_DELAY);
     }
+
+    // return to DDRAM
+    lcd_send_byte(lcd_inst, LCD_SETDDRAMADDR, LCD_COMMAND_MODE, FAST_DELAY);
 }
