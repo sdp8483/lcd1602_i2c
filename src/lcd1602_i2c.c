@@ -178,6 +178,6 @@ void lcd_create_char(LCD *lcd_inst, uint8_t location, const uint8_t pattern[8]) 
 
     // write 8 rows of data
     for (int8_t i=0; i < 8; i++) {
-        lcd_send_byte(lcd_inst, pattern[i], LCD_CHAR_MODE);
+        lcd_send_byte(lcd_inst, pattern[i], LCD_CHAR_MODE, FAST_DELAY);
     }
 }
