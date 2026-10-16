@@ -23,12 +23,9 @@ void lcd_send_byte(LCD* lcd_inst, uint8_t val, uint8_t mode, uint64_t delay_us) 
     if (mode == LCD_COMMAND_MODE) {
         if (LCD_SETDDRAMADDR & val) {
             // Leave as be
-        }
-        else if (LCD_SETCGRAMADDR & val) {
-            // TODO
-            return;
-        }
-        else if (LCD_FUNCTIONSET & val) {
+        } else if (LCD_SETCGRAMADDR & val) {
+            // Leave as be
+        } else if (LCD_FUNCTIONSET & val) {
             // FORBIDDEN
             return;
         }
@@ -171,7 +168,7 @@ void lcd_shift_cursor(LCD* lcd_inst, uint8_t move_right, uint8_t amount) {
 }
 
 void lcd_create_char(LCD *lcd_inst, uint8_t location, const uint8_t pattern[8]) {
-    location &= 0x07;
+    location &= 0x07;   /* mask since there are only 8 location available */
 
     // set CGRAM address
     lcd_send_byte(lcd_inst, LCD_SETCGRAMADDR | (location << 3), LCD_COMMAND_MODE, FAST_DELAY);
