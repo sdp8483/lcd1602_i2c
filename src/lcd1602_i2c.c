@@ -31,7 +31,7 @@ void lcd_send_byte(LCD* lcd_inst, uint8_t val, uint8_t mode, uint64_t delay_us) 
         // }
         // All low shifts are incremented by 4
         // Check header beginning
-        else if (LCD_CURSORSHIFT & val) {
+        if (LCD_CURSORSHIFT & val) {
             low = low | (lcd_inst->status.shift_display << 7);
             low = low | (lcd_inst->status.shift_right << 6);
         }
