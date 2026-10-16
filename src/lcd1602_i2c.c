@@ -169,3 +169,15 @@ void lcd_shift_cursor(LCD* lcd_inst, uint8_t move_right, uint8_t amount) {
     while (amount--)
         lcd_send_byte(lcd_inst, LCD_CURSORSHIFT, LCD_COMMAND_MODE, FAST_DELAY);
 }
+
+void lcd_create_char(LCD *lcd_inst, uint8_t location, const uint8_t pattern[8]) {
+    location &= 0x07;
+
+    // set CGRAM address
+    lcd_send_byte(lcd_inst, LCD_SETCGRAMADDR | (location << 3), LCD_COMMAND_MODE, FAST_DELAY);
+
+    // write 8 rows of data
+    for (int8_t i=0; i < 8; i++) {
+        lcd_send_byte(lcd_inst, pattern[i], LCD_CHAR_MODE);
+    }
+}

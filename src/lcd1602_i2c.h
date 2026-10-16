@@ -266,4 +266,11 @@ void lcd_shift_display(LCD* lcd_inst, uint8_t move_right, uint8_t amount);
  * Remember to bring cursor back
  */
 void lcd_shift_cursor(LCD* lcd_inst, uint8_t move_right, uint8_t amount);
+
+/* 
+ * creates a custom character at location specified
+ * there are a maximum of 8 custom characters
+ * use lcd_char(&lcd, 0); to display custom character 0 and so on
+ */
+void lcd_create_char(LCD *lcd_inst, uint8_t location, const uint8_t pattern[8]);
 #endif //__LCD1602_I2C_H
