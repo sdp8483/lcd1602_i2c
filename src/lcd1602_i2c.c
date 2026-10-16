@@ -21,14 +21,14 @@ void lcd_send_byte(LCD* lcd_inst, uint8_t val, uint8_t mode, uint64_t delay_us) 
     // Remember - val has the 8 bits needed for instructions
     // The other bits are set externally
     if (mode == LCD_COMMAND_MODE) {
-        if (LCD_SETDDRAMADDR & val) {
-            // Leave as be
-        } else if (LCD_SETCGRAMADDR & val) {
-            // Leave as be
-        } else if (LCD_FUNCTIONSET & val) {
-            // FORBIDDEN
-            return;
-        }
+        // if (LCD_SETDDRAMADDR & val) {
+        //     // Leave as be
+        // } else if (LCD_SETCGRAMADDR & val) {
+        //     // Leave as be
+        // } else if (LCD_FUNCTIONSET & val) {
+        //     // FORBIDDEN
+        //     return;
+        // }
         // All low shifts are incremented by 4
         // Check header beginning
         else if (LCD_CURSORSHIFT & val) {
