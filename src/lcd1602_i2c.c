@@ -1,18 +1,34 @@
 #include "lcd1602_i2c.h"
 
-void i2c_write_byte(LCD* lcd_inst, uint8_t val) {
-    i2c_write_blocking((lcd_inst->i2c_type == 1) ? i2c1 : i2c0,
-                       lcd_inst->addr, &val, 1, false);
+static lcd_status_t i2c_write_byte(LCD *lcd_inst, uint8_t val) {
+    int r = i2c_write_blocking((lcd_inst->i2c_type == 1) ? i2c1 : i2c0,
+                         lcd_inst->addr, &val, 1, false);
+
+    if (r == PICO_ERROR_GENERIC) {
+        LCD1602_LOG("i2c write error\n");
+        return LCD_I2C_ERROR;
+    }
+
+    return LCD_OK;
 }
 
-void lcd_toggle_enable(LCD* lcd_inst, uint8_t val, const uint64_t delay_us) {
+static lcd_status_t lcd_toggle_enable(LCD *lcd_inst, uint8_t val, const uint64_t delay_us) {
     sleep_us(delay_us);
-    i2c_write_byte(lcd_inst, val | LCD_ENABLE_PIN);
+    if (i2c_write_byte(lcd_inst, val | LCD_ENABLE_PIN) != LCD_OK) {
+        LCD1602_LOG("lcd toggle error\n");
+        return LCD_I2C_ERROR;
+    }
+
     sleep_us(delay_us);
-    i2c_write_byte(lcd_inst, val & ~LCD_ENABLE_PIN);
+    if (i2c_write_byte(lcd_inst, val & ~LCD_ENABLE_PIN) != LCD_OK) {
+        LCD1602_LOG("lcd toggle error\n");
+        return LCD_I2C_ERROR;
+    }
+
+    return LCD_OK;
 }
 
-void lcd_send_byte(LCD* lcd_inst, uint8_t val, uint8_t mode, uint64_t delay_us) {
+static lcd_status_t lcd_send_byte(LCD *lcd_inst, uint8_t val, uint8_t mode, uint64_t delay_us) {
     // Move the data bits in the appropriate place
     uint8_t high = mode | (val & 0xF0)  | (lcd_inst->status.backlight_on << 3);
     uint8_t low = mode | ((val << 4) & 0xF0) | (lcd_inst->status.backlight_on << 3);
@@ -27,7 +43,8 @@ void lcd_send_byte(LCD* lcd_inst, uint8_t val, uint8_t mode, uint64_t delay_us) 
             // Leave as be
         } else if (LCD_FUNCTIONSET & val) {
             // FORBIDDEN
-            return;
+            LCD1602_LOG("forbidden command %d\n", val);
+            return LCD_COMMAND_ERROR;
         }
         // All low shifts are incremented by 4
         // Check header beginning
@@ -48,11 +65,29 @@ void lcd_send_byte(LCD* lcd_inst, uint8_t val, uint8_t mode, uint64_t delay_us) 
     }
 
     // Send two transfers
-    lcd_toggle_enable(lcd_inst, high, delay_us);
-    lcd_toggle_enable(lcd_inst, low, delay_us);
+    if (lcd_toggle_enable(lcd_inst, high, delay_us) != LCD_OK) {
+        return LCD_I2C_ERROR;
+    }
+    if (lcd_toggle_enable(lcd_inst, low, delay_us) != LCD_OK) {
+        return LCD_I2C_ERROR;
+    }
+
+    return LCD_OK;
 }
 
-void lcd_init(LCD* lcd_inst, int address, uint8_t pin_sda, uint8_t pin_scl, i2c_inst_t* i2c_inst) {
+lcd_status_t lcd_init(LCD *lcd_inst, int address, uint8_t pin_sda, uint8_t pin_scl, i2c_inst_t *i2c_inst) {
+    /* null guard on lcd struct */
+    if (lcd_inst == NULL) {
+        LCD1602_LOG("Error: LCD struct is NULL\n");
+        return LCD_INVALID_ARGS;
+    }
+
+    /* make sure LCD is not initialized */
+    if (lcd_inst->initialized) {
+        LCD1602_LOG("Error: LCD is already initialized\n");
+        return LCD_INITIALIZED;
+    }
+
     /* Init the sdk */
     i2c_init(i2c_inst, STANDARD_RATE);
     gpio_set_function(pin_sda, GPIO_FUNC_I2C);
@@ -97,77 +132,241 @@ void lcd_init(LCD* lcd_inst, int address, uint8_t pin_sda, uint8_t pin_scl, i2c_
 
     sleep_ms(1);
 
+    lcd_inst->initialized = true;
+
     lcd_clear(lcd_inst);
+
+    return LCD_OK;
 }
 
-void lcd_clear(LCD* lcd_inst) {
+lcd_status_t lcd_clear(LCD *lcd_inst) {
+    /* null guard on lcd struct */
+    if (lcd_inst == NULL) {
+        LCD1602_LOG("Error: LCD struct is NULL\n");
+        return LCD_INVALID_ARGS;
+    }
+
+    /* make sure LCD is initialized */
+    if (!lcd_inst->initialized) {
+        LCD1602_LOG("Error: LCD is not initialized\n");
+        return LCD_NOT_INITIALIZED;
+    }
+
     // Watch out, it's slow (2ms)
     lcd_send_byte(lcd_inst, LCD_CLEARDISPLAY, LCD_COMMAND_MODE, SLOW_DELAY);
+
+    // seems to cause problems if not set to 0,0
+    lcd_set_cursor_pos(lcd_inst, 0 , 0);
+
+    return LCD_OK;
 }
 
-void lcd_char(LCD* lcd_inst, char val) {
+lcd_status_t lcd_char(LCD *lcd_inst, char val) {
+    /* null guard on lcd struct */
+    if (lcd_inst == NULL) {
+        LCD1602_LOG("Error: LCD struct is NULL\n");
+        return LCD_INVALID_ARGS;
+    }
+
+    /* make sure LCD is initialized */
+    if (!lcd_inst->initialized) {
+        LCD1602_LOG("Error: LCD is not initialized\n");
+        return LCD_NOT_INITIALIZED;
+    }
+    
     lcd_send_byte(lcd_inst, val, LCD_CHAR_MODE, FAST_DELAY);
+
+    return LCD_OK;
 }
 
-void lcd_string(LCD* lcd_inst, const char *s) {
+lcd_status_t lcd_string(LCD *lcd_inst, const char *s) {
+    /* null guard on lcd struct */
+    if (lcd_inst == NULL) {
+        LCD1602_LOG("Error: LCD struct is NULL\n");
+        return LCD_INVALID_ARGS;
+    }
+
+    /* make sure LCD is initialized */
+    if (!lcd_inst->initialized) {
+        LCD1602_LOG("Error: LCD is not initialized\n");
+        return LCD_NOT_INITIALIZED;
+    }
+
     while (*s) {
         lcd_char(lcd_inst, *s++);
     }
+
+    return LCD_OK;
 }
 
-void lcd_set_cursor_pos(LCD* lcd_inst, uint8_t line, uint8_t position) {
-    // Cannot move past these boundaries
-    if (position >= MAX_CHARS || line >= MAX_LINES) {
-        return;
+lcd_status_t lcd_set_cursor_pos(LCD *lcd_inst, uint8_t line, uint8_t position) {
+    /* null guard on lcd struct */
+    if (lcd_inst == NULL) {
+        LCD1602_LOG("Error: LCD struct is NULL\n");
+        return LCD_INVALID_ARGS;
     }
+
+    /* make sure LCD is initialized */
+    if (!lcd_inst->initialized) {
+        LCD1602_LOG("Error: LCD is not initialized\n");
+        return LCD_NOT_INITIALIZED;
+    }
+
+    // Cannot move past these boundaries
+    if (position >= MAX_CHARS) {
+        return LCD_EXCEED_MAX_CHAR;
+    }
+
+    if (line >= MAX_LINES) {
+        return LCD_EXCEED_MAX_LINE;
+    }
+
     uint8_t val = LCD_SETDDRAMADDR | (position + lcd_inst->_row_offsets[line]);
     lcd_send_byte(lcd_inst, val, LCD_COMMAND_MODE, FAST_DELAY);
+
+    return LCD_OK;
 }
 
-void lcd_set_display(LCD* lcd_inst, uint8_t set_display) {
+lcd_status_t lcd_set_display(LCD *lcd_inst, uint8_t set_display) {
+    /* null guard on lcd struct */
+    if (lcd_inst == NULL) {
+        LCD1602_LOG("Error: LCD struct is NULL\n");
+        return LCD_INVALID_ARGS;
+    }
+
+    /* make sure LCD is initialized */
+    if (!lcd_inst->initialized) {
+        LCD1602_LOG("Error: LCD is not initialized\n");
+        return LCD_NOT_INITIALIZED;
+    }
+
     lcd_inst->status.display_on = set_display;
 
     lcd_send_byte(lcd_inst, LCD_DISPLAYCONTROL, LCD_COMMAND_MODE, FAST_DELAY);
+
+    return LCD_OK;
 }
 
-void lcd_show_cursor(LCD* lcd_inst, uint8_t show_cursor) {
+lcd_status_t lcd_show_cursor(LCD *lcd_inst, uint8_t show_cursor) {
+    /* null guard on lcd struct */
+    if (lcd_inst == NULL) {
+        LCD1602_LOG("Error: LCD struct is NULL\n");
+        return LCD_INVALID_ARGS;
+    }
+
+    /* make sure LCD is initialized */
+    if (!lcd_inst->initialized) {
+        LCD1602_LOG("Error: LCD is not initialized\n");
+        return LCD_NOT_INITIALIZED;
+    }
+
     lcd_inst->status.cursor_on = show_cursor;
 
     lcd_send_byte(lcd_inst, LCD_DISPLAYCONTROL, LCD_COMMAND_MODE, FAST_DELAY);
+
+    return LCD_OK;
 }
 
-void lcd_set_blinking(LCD* lcd_inst, uint8_t set_blinking){
+lcd_status_t lcd_set_blinking(LCD *lcd_inst, uint8_t set_blinking){
+    /* null guard on lcd struct */
+    if (lcd_inst == NULL) {
+        LCD1602_LOG("Error: LCD struct is NULL\n");
+        return LCD_INVALID_ARGS;
+    }
+
+    /* make sure LCD is initialized */
+    if (!lcd_inst->initialized) {
+        LCD1602_LOG("Error: LCD is not initialized\n");
+        return LCD_NOT_INITIALIZED;
+    }
+
     lcd_inst->status.blinking_on = set_blinking;
 
     lcd_send_byte(lcd_inst, LCD_DISPLAYCONTROL, LCD_COMMAND_MODE, FAST_DELAY);
+
+    return LCD_OK;
 }
 
-void lcd_set_backlight(LCD* lcd_inst, uint8_t set_backlight) {
+lcd_status_t lcd_set_backlight(LCD *lcd_inst, uint8_t set_backlight) {
+    /* null guard on lcd struct */
+    if (lcd_inst == NULL) {
+        LCD1602_LOG("Error: LCD struct is NULL\n");
+        return LCD_INVALID_ARGS;
+    }
+
+    /* make sure LCD is initialized */
+    if (!lcd_inst->initialized) {
+        LCD1602_LOG("Error: LCD is not initialized\n");
+        return LCD_NOT_INITIALIZED;
+    }
+
     // Turn both backlight and display on/off at the same time
     lcd_inst->status.backlight_on = set_backlight;
     lcd_inst->status.display_on = set_backlight;
 
     // Make use of display, so we preserve the state of the memory
     lcd_send_byte(lcd_inst, LCD_DISPLAYCONTROL, LCD_COMMAND_MODE, FAST_DELAY);
+
+    return LCD_OK;
 }
 
-void lcd_shift_display(LCD* lcd_inst, uint8_t move_right, uint8_t amount) {
+lcd_status_t lcd_shift_display(LCD *lcd_inst, uint8_t move_right, uint8_t amount) {
+    /* null guard on lcd struct */
+    if (lcd_inst == NULL) {
+        LCD1602_LOG("Error: LCD struct is NULL\n");
+        return LCD_INVALID_ARGS;
+    }
+
+    /* make sure LCD is initialized */
+    if (!lcd_inst->initialized) {
+        LCD1602_LOG("Error: LCD is not initialized\n");
+        return LCD_NOT_INITIALIZED;
+    }
+
     lcd_inst->status.shift_display = 1;
     lcd_inst->status.shift_right = move_right;
 
     while (amount--)
         lcd_send_byte(lcd_inst, LCD_CURSORSHIFT, LCD_COMMAND_MODE, FAST_DELAY);
+
+    return LCD_OK;
 }
 
-void lcd_shift_cursor(LCD* lcd_inst, uint8_t move_right, uint8_t amount) {
+lcd_status_t lcd_shift_cursor(LCD *lcd_inst, uint8_t move_right, uint8_t amount) {
+    /* null guard on lcd struct */
+    if (lcd_inst == NULL) {
+        LCD1602_LOG("Error: LCD struct is NULL\n");
+        return LCD_INVALID_ARGS;
+    }
+
+    /* make sure LCD is initialized */
+    if (!lcd_inst->initialized) {
+        LCD1602_LOG("Error: LCD is not initialized\n");
+        return LCD_NOT_INITIALIZED;
+    }
+
     lcd_inst->status.shift_display = 0;
     lcd_inst->status.shift_right = move_right;
 
     while (amount--)
         lcd_send_byte(lcd_inst, LCD_CURSORSHIFT, LCD_COMMAND_MODE, FAST_DELAY);
+
+    return LCD_OK;
 }
 
-void lcd_create_char(LCD *lcd_inst, uint8_t location, const uint8_t pattern[8]) {
+lcd_status_t lcd_create_char(LCD *lcd_inst, uint8_t location, const uint8_t pattern[8]) {
+    /* null guard on lcd struct */
+    if (lcd_inst == NULL) {
+        LCD1602_LOG("Error: LCD struct is NULL\n");
+        return LCD_INVALID_ARGS;
+    }
+
+    /* make sure LCD is initialized */
+    if (!lcd_inst->initialized) {
+        LCD1602_LOG("Error: LCD is not initialized\n");
+        return LCD_NOT_INITIALIZED;
+    }
+
     location &= 0x07;   /* mask since there are only 8 location available */
 
     // set CGRAM address
@@ -180,4 +379,6 @@ void lcd_create_char(LCD *lcd_inst, uint8_t location, const uint8_t pattern[8]) 
 
     // return to DDRAM
     lcd_send_byte(lcd_inst, LCD_SETDDRAMADDR, LCD_COMMAND_MODE, FAST_DELAY);
+
+    return LCD_OK;
 }

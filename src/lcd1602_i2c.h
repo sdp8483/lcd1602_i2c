@@ -39,18 +39,18 @@
 #ifndef __LCD1602_I2C_H
 #define __LCD1602_I2C_H
 
+#include <stdio.h>
+#include <stdint.h>
+#include <stdbool.h>
 #include "hardware/i2c.h"
 #include "pico/stdlib.h"
 
-/* debug printf ------------------------------------------------------------- */
-#ifndef LCD1602_I2C_LOG_MESSAGES
-#define LCD1602_I2C_LOG_MESSAGES    true
-#endif
-
-#if LCD1602_I2C_LOG_MESSAGES
-#define lcd1602_log(__info,...)     printf("LCD1602_I2C: ", __info,##__VA_ARGS__)
+/* debug printf -------------------------------------------------------------- */
+#ifdef LCD1602_I2C_LOG_MESSAGES     /* define in CMake to enable printf messages */
+/* output format: [lcd1602_i2c.c:func_name:line] message */
+#define LCD1602_LOG(msg, ...)        printf("[%s:%s:%d] " msg, __FILE_NAME__, __func__, __LINE__, ##__VA_ARGS__)
 #else
-#define lcd1602_log(__info,...)
+#define LCD1602_LOG(msg, ...)
 #endif
 
 /* Uses I2C 100khz mode */
@@ -129,10 +129,24 @@
 #define FAST_DELAY 80
 #define SLOW_DELAY 2000 // Used for Returning home and Clearing the display
 
+/* return fuction status messages 
+ * 
+ */
+typedef enum {
+    LCD_OK,
+    LCD_EXCEED_MAX_CHAR,
+    LCD_EXCEED_MAX_LINE,
+    LCD_INVALID_ARGS,
+    LCD_NOT_INITIALIZED,
+    LCD_INITIALIZED,
+    LCD_I2C_ERROR,
+    LCD_COMMAND_ERROR
+} lcd_status_t;
+
 /*
  * One byte struct describing an LCD status.
  */
-typedef struct _LCD_STATUS {
+typedef struct LCD_STATUS {
     /*
      * Cursor_direction increment/decrement - I_D
      * Cursor on/off - C
@@ -154,7 +168,11 @@ typedef struct _LCD_STATUS {
     uint8_t shift_right : 1;
 } LCD_STATUS;
 
-typedef struct _LCD {
+/*
+ * Must be zero initialized before first use:
+ *   LCD lcd = {0};
+ */
+typedef struct LCD {
     /*
      * Bus address used by the I2C chip.
      * May be 0x3F or 0x27, depending on manufacturer
@@ -173,6 +191,12 @@ typedef struct _LCD {
      */
     uint8_t i2c_type;
 
+    /* 
+     * Initialized flag to prevent reinitialization 
+     *   and error on using functions before init 
+     */
+    bool initialized;
+
     LCD_STATUS status;
 
     /* cursor position row offsets */
@@ -180,19 +204,19 @@ typedef struct _LCD {
 } LCD;
 
 /* Helper function for interfacing with pico-sdk */
-void i2c_write_byte (struct _LCD* lcd_inst, uint8_t val);
+// void i2c_write_byte (struct LCD *lcd_inst, uint8_t val);
 
 /*
  * The actual sending of data by enabling and disabling the E pin
  * Has a delay_us parameter since some commands differ in time needed
  */
-void lcd_toggle_enable (LCD* lcd_inst, uint8_t val, uint64_t delay_us);
+// void lcd_toggle_enable (LCD* lcd_inst, uint8_t val, uint64_t delay_us);
 
 /*
  * Sends two separate nibbles (4-bits), explained at the beginning
  * of this header file.
  */
-void send_byte (LCD* lcd_inst, uint8_t val, uint8_t mode, uint64_t delay_us);
+// void lcd_send_byte (LCD* lcd_inst, uint8_t val, uint8_t mode, uint64_t delay_us);
 
 /*
  *  The initialization protocol is from page 46
@@ -208,17 +232,17 @@ void send_byte (LCD* lcd_inst, uint8_t val, uint8_t mode, uint64_t delay_us);
  *  GP4, GP5 as SDA, SCL need i2c0.
  *  GP6, GP7 as SDA, SCL need i2c1.
  */
-void lcd_init (LCD* lcd_inst, int address, uint8_t pin_sda, uint8_t pin_scl, i2c_inst_t* i2c_inst);
+lcd_status_t lcd_init (LCD *lcd_inst, int address, uint8_t pin_sda, uint8_t pin_scl, i2c_inst_t *i2c_inst);
 
 /*
  * Clears the display
  */
-void lcd_clear(LCD* lcd_inst);
+lcd_status_t lcd_clear(LCD *lcd_inst);
 
 /*
  * Puts a character on the screen
  */
-void lcd_char(LCD* lcd_inst, char val);
+lcd_status_t lcd_char(LCD *lcd_inst, char val);
 
 
 /*
@@ -227,50 +251,50 @@ void lcd_char(LCD* lcd_inst, char val);
  * that means 80 characters.
  * You can fill 2 and a half screens with this much
  */
-void lcd_string(LCD* lcd_inst, const char *s);
+lcd_status_t lcd_string(LCD *lcd_inst, const char *s);
 
 /*
  * Moves the cursor somewhere inside 0, 0 to 1, 15
  */
-void lcd_set_cursor_pos(LCD* lcd_inst, uint8_t line, uint8_t position);
+lcd_status_t lcd_set_cursor_pos(LCD *lcd_inst, uint8_t line, uint8_t position);
 
 /*
  * Turn display on or off (hides characters)
  */
-void lcd_set_display(LCD* lcd_inst, uint8_t set_display);
+lcd_status_t lcd_set_display(LCD *lcd_inst, uint8_t set_display);
 
 /*
  * Turn backlight on or off (turns off the screen)
  */
-void lcd_set_backlight(LCD* lcd_inst, uint8_t set_backlight);
+lcd_status_t lcd_set_backlight(LCD *lcd_inst, uint8_t set_backlight);
 
 /*
  * Show or hide the cursor under characters
  */
-void lcd_show_cursor(LCD* lcd_inst, uint8_t show_cursor);
+lcd_status_t lcd_show_cursor(LCD *lcd_inst, uint8_t show_cursor);
 
 /*
  * Show or hide blinking of characters
  */
-void lcd_set_blinking(LCD* lcd_inst, uint8_t set_blinking);
+lcd_status_t lcd_set_blinking(LCD *lcd_inst, uint8_t set_blinking);
 
 /*
  * Shifts the display right or left by amount
  * You can shift it outside the screen, doesn't matter
  */
-void lcd_shift_display(LCD* lcd_inst, uint8_t move_right, uint8_t amount);
+lcd_status_t lcd_shift_display(LCD *lcd_inst, uint8_t move_right, uint8_t amount);
 
 /*
  * Shifts the cursor right or left by amount
  * You can shift it outside, doesn't matter
  * Remember to bring cursor back
  */
-void lcd_shift_cursor(LCD* lcd_inst, uint8_t move_right, uint8_t amount);
+lcd_status_t lcd_shift_cursor(LCD *lcd_inst, uint8_t move_right, uint8_t amount);
 
 /* 
  * creates a custom character at location specified
  * there are a maximum of 8 custom characters
  * use lcd_char(&lcd, 0); to display custom character 0 and so on
  */
-void lcd_create_char(LCD *lcd_inst, uint8_t location, const uint8_t pattern[8]);
+lcd_status_t lcd_create_char(LCD *lcd_inst, uint8_t location, const uint8_t pattern[8]);
 #endif //__LCD1602_I2C_H
